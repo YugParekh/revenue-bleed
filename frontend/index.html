@@ -1,1312 +1,1621 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Revenue Bleed — Financial Forensics Engine</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --mc-void: #0D0D0D;
-    --mc-stone: #1A1A1A;
-    --mc-deepslate: #242424;
-    --mc-grass: #5B8A3C;
-    --mc-redstone: #C0392B;
-    --mc-redstone-glow: rgba(192, 57, 43, 0.4);
-    --mc-lava: #E67E22;
-    --mc-emerald: #27AE60;
-    --mc-gold: #F1C40F;
-    --mc-diamond: #4FC3F7;
-    --mc-diamond-glow: rgba(79, 195, 247, 0.4);
-    --mc-concrete: #F5F5F5;
-    --mc-text-dim: #A0A0A0;
-    --mc-text-muted: #666666;
-    --mc-border: #3D3D3D;
-    --mc-border-light: #5A5A5A;
-    
-    --font-pixel: 'Press Start 2P', monospace;
-    --font-lcd: 'VT323', monospace;
-    --font-cyber: 'Chakra Petch', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-sans: 'Inter', sans-serif;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background-color: var(--mc-void);
-    background-image: 
-      linear-gradient(rgba(61, 61, 61, 0.12) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(61, 61, 61, 0.12) 1px, transparent 1px);
-    background-size: 8px 8px;
-    color: var(--mc-concrete);
-    font-family: var(--font-sans);
-    font-size: 13px;
-    line-height: 1.5;
-    min-height: 100vh;
-    overflow: hidden;
-    position: relative;
-    user-select: none;
-  }
-
-  /* CRT Scanlines Overlay */
-  body.crt-active::before {
-    content: '';
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
-    background-size: 100% 4px;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.6;
-  }
-
-  /* ── MARQUEE TICKER ── */
-  .marquee-ticker {
-    background-color: var(--mc-redstone);
-    color: #FFF;
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    padding: 5px 0;
-    overflow: hidden;
-    white-space: nowrap;
-    border-bottom: 3px solid #000;
-    font-weight: bold;
-    box-shadow: 0 0 12px var(--mc-redstone-glow);
-  }
-  .marquee-content {
-    display: inline-block;
-    animation: marquee 22s linear infinite;
-  }
-  @keyframes marquee {
-    0%   { transform: translateX(100vw); }
-    100% { transform: translateX(-100%); }
-  }
-
-  /* ── APP HEADER ── */
-  .app-header {
-    background-color: var(--mc-stone);
-    border-bottom: 4px solid var(--mc-border);
-    padding: 0 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 60px;
-    box-shadow: inset 0 3px 0 var(--mc-border-light), 0 4px 12px rgba(0,0,0,0.6);
-  }
-
-  .header-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .brand-logo {
-    font-family: var(--font-pixel);
-    font-size: 11px;
-    color: var(--mc-gold);
-    text-shadow: 2px 2px 0 #000;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .brand-logo span { color: var(--mc-redstone); text-shadow: 2px 2px 0 #000; }
-
-  /* Player Rank / XP Bar */
-  .player-rank-box {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: #000;
-    border: 2px solid var(--mc-border);
-    padding: 4px 10px;
-    box-shadow: inset 2px 2px 0 #111;
-  }
-  .rank-badge {
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    color: var(--mc-emerald);
-    text-shadow: 1px 1px 0 #000;
-  }
-  .xp-bar-outer {
-    width: 90px; height: 10px;
-    background: #111;
-    border: 1px solid var(--mc-border);
-    overflow: hidden;
-  }
-  .xp-bar-inner {
-    height: 100%;
-    background: linear-gradient(90deg, var(--mc-emerald), var(--mc-gold));
-    transition: width 0.3s ease;
-  }
-  .xp-val {
-    font-family: var(--font-lcd);
-    font-size: 18px;
-    color: var(--mc-gold);
-  }
-
-  .nav-tabs { display: flex; gap: 6px; }
-
-  .mc-tab {
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    padding: 8px 14px;
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    color: var(--mc-text-dim);
-    cursor: pointer;
-    box-shadow: inset 2px 2px 0 var(--mc-border-light), 3px 3px 0 #000;
-    transition: all 0.1s ease;
-  }
-  .mc-tab:hover {
-    border-color: var(--mc-grass);
-    color: var(--mc-concrete);
-    transform: translate(-1px, -1px);
-    box-shadow: 4px 4px 0 #000;
-  }
-  .mc-tab.active {
-    background: var(--mc-grass);
-    color: #FFF;
-    border-color: #7EC850;
-    box-shadow: inset 2px 2px 0 #A8EA70, 3px 3px 0 #000;
-    text-shadow: 1px 1px 0 #000;
-  }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .odometer-box {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #000;
-    border: 3px solid var(--mc-redstone);
-    padding: 3px 12px;
-    box-shadow: inset 0 0 10px var(--mc-redstone-glow), 3px 3px 0 #000;
-  }
-  .odometer-title {
-    font-family: var(--font-pixel);
-    font-size: 8px;
-    color: var(--mc-text-dim);
-    text-transform: uppercase;
-  }
-  .odometer-val {
-    font-family: var(--font-lcd);
-    font-size: 26px;
-    color: var(--mc-redstone);
-    text-shadow: 0 0 12px var(--mc-redstone);
-    letter-spacing: 1px;
-    font-weight: bold;
-    line-height: 1;
-  }
-
-  .mc-btn {
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    padding: 8px 12px;
-    background: var(--mc-deepslate);
-    color: var(--mc-concrete);
-    border: 3px solid var(--mc-border);
-    box-shadow: inset 2px 2px 0 var(--mc-border-light), 3px 3px 0 #000;
-    cursor: pointer;
-    transition: all 0.05s ease;
-  }
-  .mc-btn:hover:not(:disabled) {
-    background: var(--mc-grass);
-    color: #FFF;
-    border-color: #7EC850;
-    transform: translate(-1px, -1px);
-    box-shadow: 4px 4px 0 #000;
-  }
-  .mc-btn:active:not(:disabled) {
-    transform: translate(1px, 1px);
-    box-shadow: 1px 1px 0 #000;
-  }
-  .mc-btn.toggled {
-    background: var(--mc-emerald);
-    color: #FFF;
-    border-color: #48D07D;
-  }
-  .mc-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  /* ── MAIN WORKSPACE ── */
-  .main-workspace {
-    height: calc(100vh - 84px);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  /* PIPELINE DIAGNOSTIC GRID */
-  .pipeline-window {
-    background-color: var(--mc-stone);
-    border-bottom: 4px solid var(--mc-border);
-    padding: 8px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .pipeline-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .pipeline-title {
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    color: var(--mc-gold);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .pipeline-nodes-wrap {
-    display: flex;
-    align-items: center;
-    height: 38px;
-  }
-  .p-node {
-    width: 120px;
-    height: 28px;
-    background: var(--mc-deepslate);
-    border: 2px solid var(--mc-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--font-pixel);
-    font-size: 8px;
-    color: var(--mc-text-dim);
-    box-shadow: inset 1px 1px 0 var(--mc-border-light), 2px 2px 0 #000;
-  }
-  .p-node.orders   { border-color: var(--mc-diamond); color: var(--mc-diamond); text-shadow: 1px 1px 0 #000; }
-  .p-node.gateway  { border-color: var(--mc-emerald); color: var(--mc-emerald); text-shadow: 1px 1px 0 #000; }
-  .p-node.bank     { border-color: var(--mc-gold); color: var(--mc-gold); text-shadow: 1px 1px 0 #000; }
-  .p-node.merchant { border-color: var(--mc-redstone); color: var(--mc-redstone); text-shadow: 1px 1px 0 #000; }
-
-  .p-pipe {
-    flex: 1;
-    height: 8px;
-    background: #000;
-    border: 1px solid var(--mc-border);
-    position: relative;
-    overflow: visible;
-  }
-  .p-crack {
-    position: absolute;
-    left: 50%; top: -6px; bottom: -6px;
-    width: 4px;
-    background: var(--mc-redstone);
-    box-shadow: 0 0 12px var(--mc-redstone);
-    z-index: 10;
-  }
-  .p-drip {
-    position: absolute;
-    left: -1px; top: 100%;
-    width: 6px; height: 0;
-    background: var(--mc-redstone);
-    box-shadow: 0 0 8px var(--mc-redstone);
-    animation: drip-anim 1.5s ease-in infinite;
-  }
-  @keyframes drip-anim {
-    0%   { height: 0; opacity: 1; }
-    60%  { height: 16px; opacity: 1; }
-    100% { height: 16px; opacity: 0; top: calc(100% + 14px); }
-  }
-
-  .particle-dot {
-    position: absolute;
-    top: 50%; transform: translateY(-50%);
-    width: 6px; height: 6px;
-    animation: p-flow linear infinite;
-    z-index: 5;
-  }
-  .particle-dot.ok   { background: var(--mc-emerald); box-shadow: 0 0 6px var(--mc-emerald); }
-  .particle-dot.fail { background: var(--mc-redstone); box-shadow: 0 0 8px var(--mc-redstone); }
-  .particle-dot.warn { background: var(--mc-gold);    box-shadow: 0 0 6px var(--mc-gold); }
-
-  @keyframes p-flow {
-    from { left: -6px; opacity: 1; }
-    90%  { opacity: 1; }
-    to   { left: calc(100% + 6px); opacity: 0; }
-  }
-
-  /* ── TWO-COLUMN WAR ROOM ── */
-  .war-room-grid {
-    display: grid;
-    grid-template-columns: 320px 1fr;
-    flex: 1;
-    overflow: hidden;
-    gap: 2px;
-    background-color: var(--mc-border);
-  }
-
-  /* GUI WINDOW STYLING */
-  .mc-window {
-    background-color: var(--mc-stone);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .window-header {
-    background: var(--mc-deepslate);
-    padding: 6px 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 3px solid var(--mc-border);
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    color: var(--mc-gold);
-    text-shadow: 1px 1px 0 #000;
-  }
-
-  .window-controls { display: flex; gap: 4px; }
-  .win-btn {
-    width: 14px; height: 14px;
-    border: 1px solid #000;
-    background: var(--mc-stone);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 8px;
-    font-weight: bold;
-    color: var(--mc-concrete);
-    cursor: pointer;
-    box-shadow: inset 1px 1px 0 var(--mc-border-light);
-  }
-  .win-btn.close { background: var(--mc-redstone); color: #FFF; }
-
-  /* SIDEBAR BREACH CARDS */
-  .sidebar-filter-bar {
-    padding: 8px 10px;
-    background: var(--mc-stone);
-    border-bottom: 2px solid var(--mc-border);
-    display: flex;
-    gap: 4px;
-  }
-  .filter-chip {
-    font-family: var(--font-pixel);
-    font-size: 8px;
-    padding: 4px 8px;
-    background: var(--mc-deepslate);
-    border: 2px solid var(--mc-border);
-    color: var(--mc-text-dim);
-    cursor: pointer;
-  }
-  .filter-chip.active {
-    background: var(--mc-grass);
-    color: #FFF;
-    border-color: #7EC850;
-  }
-
-  .breach-scroll-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .b-card {
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    padding: 12px;
-    cursor: pointer;
-    transition: all 0.1s ease;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    box-shadow: inset 2px 2px 0 var(--mc-border-light), 3px 3px 0 #000;
-  }
-  .b-card:hover {
-    border-color: var(--mc-grass);
-    transform: translate(-1px, -1px);
-    box-shadow: 4px 4px 0 #000;
-  }
-  .b-card.active {
-    background: rgba(91, 138, 60, 0.2);
-    border-color: var(--mc-redstone);
-    box-shadow: inset 4px 0 0 var(--mc-redstone), 3px 3px 0 #000;
-  }
-  .b-card.diamond-confirmed {
-    border-color: var(--mc-diamond);
-    box-shadow: inset 4px 0 0 var(--mc-diamond), 0 0 10px var(--mc-diamond-glow);
-  }
-
-  .b-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 6px;
-  }
-  .b-card-title {
-    font-family: var(--font-cyber);
-    font-weight: 700;
-    font-size: 12px;
-    color: var(--mc-concrete);
-    line-height: 1.3;
-  }
-
-  .b-sev {
-    font-family: var(--font-pixel);
-    font-size: 8px;
-    padding: 3px 6px;
-    border: 1px solid #000;
-    text-shadow: 1px 1px 0 #000;
-    text-transform: uppercase;
-    flex-shrink: 0;
-  }
-  .b-sev.critical { background: var(--mc-redstone); color: #FFF; }
-  .b-sev.high     { background: var(--mc-lava); color: #FFF; }
-  .b-sev.medium   { background: var(--mc-gold); color: #000; text-shadow: none; }
-  .b-sev.low      { background: var(--mc-text-muted); color: #FFF; }
-
-  .b-card-meta {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--mc-text-dim);
-  }
-  .b-card-loss {
-    font-family: var(--font-lcd);
-    font-size: 18px;
-    color: var(--mc-redstone);
-    font-weight: bold;
-  }
-
-  .b-sparkline {
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 16px;
-  }
-  .b-bar {
-    flex: 1;
-    background: rgba(91, 138, 60, 0.3);
-    min-height: 2px;
-  }
-  .b-bar.active { background: var(--mc-redstone); box-shadow: 0 0 4px var(--mc-redstone); }
-
-  /* DETAIL WORKSPACE */
-  .detail-workspace {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .boss-hp-box {
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-redstone);
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    box-shadow: 3px 3px 0 #000;
-  }
-  .boss-hp-head {
-    display: flex;
-    justify-content: space-between;
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    color: var(--mc-redstone);
-  }
-  .boss-hp-outer {
-    height: 12px;
-    background: #000;
-    border: 1px solid var(--mc-border);
-    overflow: hidden;
-  }
-  .boss-hp-inner {
-    height: 100%;
-    background: linear-gradient(90deg, var(--mc-redstone), var(--mc-lava));
-    box-shadow: 0 0 10px var(--mc-redstone);
-    transition: width 0.4s ease;
-  }
-  .boss-hp-inner.defeated {
-    background: var(--mc-diamond);
-    box-shadow: 0 0 10px var(--mc-diamond-glow);
-  }
-
-  .banner-validated {
-    background: rgba(79, 195, 247, 0.12);
-    border: 3px solid var(--mc-diamond);
-    padding: 10px 14px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    box-shadow: 0 0 12px var(--mc-diamond-glow);
-  }
-  .banner-validated.running {
-    background: rgba(241, 196, 15, 0.12);
-    border-color: var(--mc-gold);
-  }
-  .banner-icon {
-    font-family: var(--font-pixel);
-    font-size: 16px;
-    color: var(--mc-diamond);
-  }
-
-  .detail-head-box {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    padding: 14px;
-    box-shadow: 3px 3px 0 #000;
-  }
-  .detail-sig {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--mc-diamond);
-  }
-  .detail-main-title {
-    font-family: var(--font-cyber);
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--mc-concrete);
-  }
-  .detail-main-desc {
-    color: var(--mc-text-dim);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  /* 4 STAT LCD BOXES */
-  .stat-quad-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-  }
-  .lcd-stat-box {
-    background: #000;
-    border: 2px solid var(--mc-border);
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    box-shadow: 2px 2px 0 #000;
-  }
-  .lcd-stat-lbl {
-    font-family: var(--font-pixel);
-    font-size: 8px;
-    color: var(--mc-text-muted);
-    text-transform: uppercase;
-  }
-  .lcd-stat-val {
-    font-family: var(--font-lcd);
-    font-size: 22px;
-    font-weight: bold;
-    color: var(--mc-concrete);
-  }
-  .lcd-stat-val.red    { color: var(--mc-redstone); text-shadow: 0 0 8px var(--mc-redstone); }
-  .lcd-stat-val.emerald{ color: var(--mc-emerald); text-shadow: 0 0 8px var(--mc-emerald); }
-  .lcd-stat-val.gold   { color: var(--mc-gold); }
-
-  /* DIAGNOSTICS TERMINAL */
-  .term-window {
-    background: #000;
-    border: 3px solid var(--mc-border);
-    box-shadow: 3px 3px 0 #000;
-    overflow: hidden;
-  }
-  .term-body {
-    padding: 14px;
-    height: 200px;
-    overflow-y: auto;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    color: var(--mc-text-dim);
-  }
-
-  .hypo-box {
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    border-left: 5px solid var(--mc-diamond);
-    padding: 14px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--mc-text-dim);
-    line-height: 1.6;
-    box-shadow: 3px 3px 0 #000;
-  }
-
-  .diff-window {
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    box-shadow: 3px 3px 0 #000;
-    overflow: hidden;
-  }
-  .diff-content {
-    padding: 14px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1.6;
-    white-space: pre;
-    overflow-x: auto;
-  }
-  .diff-content .del { color: var(--mc-redstone); background: rgba(192, 57, 43, 0.15); display: block; }
-  .diff-content .add { color: var(--mc-emerald); background: rgba(39, 174, 96, 0.15); display: block; }
-  .diff-content .neu { color: var(--mc-text-dim); display: block; }
-
-  /* ── AGENT VIEW STYLES ── */
-  .agent-workspace {
-    flex: 1;
-    padding: 16px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    overflow-y: auto;
-  }
-
-  .agent-launch-bar {
-    background: var(--mc-stone);
-    border: 3px solid var(--mc-border);
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 3px 3px 0 #000;
-  }
-
-  .agent-launch-btn {
-    font-family: var(--font-pixel);
-    font-size: 11px;
-    padding: 10px 20px;
-    background: var(--mc-grass);
-    color: #FFF;
-    border-color: #7EC850;
-    box-shadow: inset 2px 2px 0 #A8EA70, 0 0 14px rgba(91, 138, 60, 0.6), 4px 4px 0 #000;
-  }
-  .agent-launch-btn:hover:not(:disabled) {
-    background: #6DB343;
-    box-shadow: inset 2px 2px 0 #C4FF96, 0 0 20px rgba(91, 138, 60, 0.9), 5px 5px 0 #000;
-    transform: translate(-1px, -1px);
-  }
-
-  .agent-status-badge {
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    padding: 6px 12px;
-    background: #000;
-    border: 2px solid var(--mc-border);
-    color: var(--mc-text-dim);
-  }
-  .agent-status-badge span { font-weight: bold; }
-  .agent-status-badge.ready span { color: var(--mc-gold); }
-  .agent-status-badge.investigating span { color: var(--mc-diamond); animation: pulse 1.2s infinite; }
-  .agent-status-badge.complete span { color: var(--mc-emerald); }
-  .agent-status-badge.error span { color: var(--mc-redstone); }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  .agent-log-window {
-    flex: 1;
-    min-height: 280px;
-    background: #000;
-    border: 3px solid var(--mc-border);
-    box-shadow: 3px 3px 0 #000;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .agent-log-screen {
-    padding: 16px;
-    flex: 1;
-    max-height: 360px;
-    overflow-y: auto;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1.6;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .agent-log-empty {
-    color: var(--mc-text-muted);
-    font-style: italic;
-  }
-
-  @keyframes log-fade-in {
-    from { opacity: 0; transform: translateX(-10px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  .agent-log-line {
-    animation: log-fade-in 0.25s ease-out forwards;
-    padding: 2px 0;
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    word-break: break-word;
-  }
-  .agent-log-line.type-start    { color: var(--mc-text-dim); }
-  .agent-log-line.type-thought  { color: var(--mc-concrete); }
-  .agent-log-line.type-action   { color: var(--mc-diamond); }
-  .agent-log-line.type-result   { color: var(--mc-emerald); }
-  .agent-log-line.type-result.err { color: var(--mc-redstone); }
-  .agent-log-line.type-complete { color: #FFF; font-weight: bold; font-family: var(--font-pixel); font-size: 10px; }
-  .agent-log-line.type-error    { color: var(--mc-redstone); font-weight: bold; }
-
-  .tool-badge {
-    font-family: var(--font-pixel);
-    font-size: 8px;
-    padding: 2px 6px;
-    background: var(--mc-deepslate);
-    border: 1px solid var(--mc-border);
-    color: var(--mc-gold);
-    flex-shrink: 0;
-  }
-
-  /* RANKED FIX PLAN CARDS */
-  .fix-plan-window {
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    box-shadow: 3px 3px 0 #000;
-    overflow: hidden;
-  }
-
-  .fix-plan-grid {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .fix-plan-card {
-    background: var(--mc-stone);
-    border: 2px solid var(--mc-border);
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    box-shadow: 2px 2px 0 #000;
-  }
-
-  .fix-rank-badge {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--mc-gold);
-    width: 36px; height: 36px;
-    background: #000;
-    border: 2px solid var(--mc-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .fix-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .fix-title { font-family: var(--font-cyber); font-weight: 700; font-size: 14px; color: var(--mc-concrete); }
-  .fix-sig { font-family: var(--font-mono); font-size: 11px; color: var(--mc-text-dim); }
-
-  .fix-stats {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
-  .fix-stat-item {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-  }
-  .fix-stat-lbl { font-family: var(--font-pixel); font-size: 8px; color: var(--mc-text-muted); text-transform: uppercase; }
-  .fix-stat-val { font-family: var(--font-lcd); font-size: 20px; font-weight: bold; }
-  .fix-stat-val.green { color: var(--mc-emerald); }
-  .fix-stat-val.amber { color: var(--mc-lava); }
-  .fix-stat-val.gold  { color: var(--mc-gold); }
-
-  /* MODALS */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 20000;
-  }
-  .modal-window {
-    width: 480px;
-    max-width: 90vw;
-    background: var(--mc-stone);
-    border: 4px solid var(--mc-gold);
-    box-shadow: 6px 6px 0 #000;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .achieve-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-bottom: 2px solid var(--mc-border);
-    background: var(--mc-deepslate);
-  }
-  .achieve-icon { font-size: 24px; }
-  .achieve-title { font-family: var(--font-pixel); font-size: 9px; color: var(--mc-gold); }
-  .achieve-desc { font-size: 11px; color: var(--mc-text-dim); }
-
-  /* EVAL METRICS DECK */
-  .metrics-workspace {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .hero-quad {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-  }
-  .hero-score-card {
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    box-shadow: 3px 3px 0 #000;
-  }
-  .hero-score-val {
-    font-family: var(--font-lcd);
-    font-size: 34px;
-    font-weight: bold;
-    line-height: 1;
-  }
-  .hero-score-val.emerald { color: var(--mc-emerald); text-shadow: 0 0 10px var(--mc-emerald); }
-  .hero-score-val.red     { color: var(--mc-redstone); text-shadow: 0 0 10px var(--mc-redstone); }
-  .hero-score-val.diamond { color: var(--mc-diamond); text-shadow: 0 0 10px var(--mc-diamond); }
-
-  .metrics-grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-
-  .brutal-table-card {
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-border);
-    box-shadow: 3px 3px 0 #000;
-    overflow: hidden;
-  }
-  .brutal-table { width: 100%; border-collapse: collapse; }
-  .brutal-table th, .brutal-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--mc-border);
-    font-size: 12px;
-    text-align: left;
-  }
-  .brutal-table th {
-    background: #000;
-    font-family: var(--font-pixel);
-    color: var(--mc-gold);
-    font-size: 9px;
-  }
-
-  .bar-outer-b {
-    height: 8px;
-    background: #000;
-    border: 1px solid var(--mc-border);
-    overflow: hidden;
-  }
-  .bar-inner-b {
-    height: 100%;
-    background: var(--mc-emerald);
-  }
-
-  /* TOAST */
-  .toast-box {
-    position: fixed;
-    bottom: 24px; right: 24px;
-    background: var(--mc-deepslate);
-    border: 3px solid var(--mc-gold);
-    padding: 12px 20px;
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    color: #FFF;
-    box-shadow: 4px 4px 0 #000;
-    transform: translateY(80px);
-    transition: transform 0.2s ease;
-    z-index: 10000;
-  }
-  .toast-box.show { transform: translateY(0); }
-
-  .loader-screen {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Revenue Bleed — Financial Forensics Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Press+Start+2P&family=VT323&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --mc-void: #0D0D0D;
+      --mc-stone: #1A1A1A;
+      --mc-deepslate: #242424;
+      --mc-grass: #5B8A3C;
+      --mc-redstone: #C0392B;
+      --mc-redstone-glow: rgba(192, 57, 43, 0.4);
+      --mc-lava: #E67E22;
+      --mc-emerald: #27AE60;
+      --mc-gold: #F1C40F;
+      --mc-diamond: #4FC3F7;
+      --mc-diamond-glow: rgba(79, 195, 247, 0.4);
+      --mc-concrete: #F5F5F5;
+      --mc-text-dim: #A0A0A0;
+      --mc-text-muted: #666666;
+      --mc-border: #3D3D3D;
+      --mc-border-light: #5A5A5A;
+
+      --font-pixel: 'Press Start 2P', monospace;
+      --font-lcd: 'VT323', monospace;
+      --font-cyber: 'Chakra Petch', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--mc-void);
+      background-image:
+        linear-gradient(rgba(61, 61, 61, 0.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(61, 61, 61, 0.12) 1px, transparent 1px);
+      background-size: 8px 8px;
+      color: var(--mc-concrete);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 100vh;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+
+    /* CRT Scanlines Overlay */
+    body.crt-active::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+      background-size: 100% 4px;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.6;
+    }
+
+    /* ── MARQUEE TICKER ── */
+    .marquee-ticker {
+      background-color: var(--mc-redstone);
+      color: #FFF;
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      padding: 5px 0;
+      overflow: hidden;
+      white-space: nowrap;
+      border-bottom: 3px solid #000;
+      font-weight: bold;
+      box-shadow: 0 0 12px var(--mc-redstone-glow);
+    }
+
+    .marquee-content {
+      display: inline-block;
+      animation: marquee 22s linear infinite;
+    }
+
+    @keyframes marquee {
+      0% {
+        transform: translateX(100vw);
+      }
+
+      100% {
+        transform: translateX(-100%);
+      }
+    }
+
+    /* ── APP HEADER ── */
+    .app-header {
+      background-color: var(--mc-stone);
+      border-bottom: 4px solid var(--mc-border);
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      box-shadow: inset 0 3px 0 var(--mc-border-light), 0 4px 12px rgba(0, 0, 0, 0.6);
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      font-family: var(--font-pixel);
+      font-size: 11px;
+      color: var(--mc-gold);
+      text-shadow: 2px 2px 0 #000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-logo span {
+      color: var(--mc-redstone);
+      text-shadow: 2px 2px 0 #000;
+    }
+
+    /* Player Rank / XP Bar */
+    .player-rank-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #000;
+      border: 2px solid var(--mc-border);
+      padding: 4px 10px;
+      box-shadow: inset 2px 2px 0 #111;
+    }
+
+    .rank-badge {
+      font-family: var(--font-pixel);
+      font-size: 10px;
+      color: var(--mc-emerald);
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .xp-bar-outer {
+      width: 90px;
+      height: 10px;
+      background: #111;
+      border: 1px solid var(--mc-border);
+      overflow: hidden;
+    }
+
+    .xp-bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, var(--mc-emerald), var(--mc-gold));
+      transition: width 0.3s ease;
+    }
+
+    .xp-val {
+      font-family: var(--font-lcd);
+      font-size: 18px;
+      color: var(--mc-gold);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mc-tab {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      padding: 8px 14px;
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      color: var(--mc-text-dim);
+      cursor: pointer;
+      box-shadow: inset 2px 2px 0 var(--mc-border-light), 3px 3px 0 #000;
+      transition: all 0.1s ease;
+    }
+
+    .mc-tab:hover {
+      border-color: var(--mc-grass);
+      color: var(--mc-concrete);
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 #000;
+    }
+
+    .mc-tab.active {
+      background: var(--mc-grass);
+      color: #FFF;
+      border-color: #7EC850;
+      box-shadow: inset 2px 2px 0 #A8EA70, 3px 3px 0 #000;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .odometer-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #000;
+      border: 3px solid var(--mc-redstone);
+      padding: 3px 12px;
+      box-shadow: inset 0 0 10px var(--mc-redstone-glow), 3px 3px 0 #000;
+    }
+
+    .odometer-title {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--mc-text-dim);
+      text-transform: uppercase;
+    }
+
+    .odometer-val {
+      font-family: var(--font-lcd);
+      font-size: 26px;
+      color: var(--mc-redstone);
+      text-shadow: 0 0 12px var(--mc-redstone);
+      letter-spacing: 1px;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .mc-btn {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      padding: 8px 12px;
+      background: var(--mc-deepslate);
+      color: var(--mc-concrete);
+      border: 3px solid var(--mc-border);
+      box-shadow: inset 2px 2px 0 var(--mc-border-light), 3px 3px 0 #000;
+      cursor: pointer;
+      transition: all 0.05s ease;
+    }
+
+    .mc-btn:hover:not(:disabled) {
+      background: var(--mc-grass);
+      color: #FFF;
+      border-color: #7EC850;
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 #000;
+    }
+
+    .mc-btn:active:not(:disabled) {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0 #000;
+    }
+
+    .mc-btn.toggled {
+      background: var(--mc-emerald);
+      color: #FFF;
+      border-color: #48D07D;
+    }
+
+    .mc-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ── MAIN WORKSPACE ── */
+    .main-workspace {
+      height: calc(100vh - 84px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* PIPELINE DIAGNOSTIC GRID */
+    .pipeline-window {
+      background-color: var(--mc-stone);
+      border-bottom: 4px solid var(--mc-border);
+      padding: 8px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pipeline-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pipeline-title {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      color: var(--mc-gold);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pipeline-nodes-wrap {
+      display: flex;
+      align-items: center;
+      height: 38px;
+    }
+
+    .p-node {
+      width: 120px;
+      height: 28px;
+      background: var(--mc-deepslate);
+      border: 2px solid var(--mc-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--mc-text-dim);
+      box-shadow: inset 1px 1px 0 var(--mc-border-light), 2px 2px 0 #000;
+    }
+
+    .p-node.orders {
+      border-color: var(--mc-diamond);
+      color: var(--mc-diamond);
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .p-node.gateway {
+      border-color: var(--mc-emerald);
+      color: var(--mc-emerald);
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .p-node.bank {
+      border-color: var(--mc-gold);
+      color: var(--mc-gold);
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .p-node.merchant {
+      border-color: var(--mc-redstone);
+      color: var(--mc-redstone);
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .p-pipe {
+      flex: 1;
+      height: 8px;
+      background: #000;
+      border: 1px solid var(--mc-border);
+      position: relative;
+      overflow: visible;
+    }
+
+    .p-crack {
+      position: absolute;
+      left: 50%;
+      top: -6px;
+      bottom: -6px;
+      width: 4px;
+      background: var(--mc-redstone);
+      box-shadow: 0 0 12px var(--mc-redstone);
+      z-index: 10;
+    }
+
+    .p-drip {
+      position: absolute;
+      left: -1px;
+      top: 100%;
+      width: 6px;
+      height: 0;
+      background: var(--mc-redstone);
+      box-shadow: 0 0 8px var(--mc-redstone);
+      animation: drip-anim 1.5s ease-in infinite;
+    }
+
+    @keyframes drip-anim {
+      0% {
+        height: 0;
+        opacity: 1;
+      }
+
+      60% {
+        height: 16px;
+        opacity: 1;
+      }
+
+      100% {
+        height: 16px;
+        opacity: 0;
+        top: calc(100% + 14px);
+      }
+    }
+
+    .particle-dot {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 6px;
+      height: 6px;
+      animation: p-flow linear infinite;
+      z-index: 5;
+    }
+
+    .particle-dot.ok {
+      background: var(--mc-emerald);
+      box-shadow: 0 0 6px var(--mc-emerald);
+    }
+
+    .particle-dot.fail {
+      background: var(--mc-redstone);
+      box-shadow: 0 0 8px var(--mc-redstone);
+    }
+
+    .particle-dot.warn {
+      background: var(--mc-gold);
+      box-shadow: 0 0 6px var(--mc-gold);
+    }
+
+    @keyframes p-flow {
+      from {
+        left: -6px;
+        opacity: 1;
+      }
+
+      90% {
+        opacity: 1;
+      }
+
+      to {
+        left: calc(100% + 6px);
+        opacity: 0;
+      }
+    }
+
+    /* ── TWO-COLUMN WAR ROOM ── */
+    .war-room-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      flex: 1;
+      overflow: hidden;
+      gap: 2px;
+      background-color: var(--mc-border);
+    }
+
+    /* GUI WINDOW STYLING */
+    .mc-window {
+      background-color: var(--mc-stone);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .window-header {
+      background: var(--mc-deepslate);
+      padding: 6px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 3px solid var(--mc-border);
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      color: var(--mc-gold);
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .window-controls {
+      display: flex;
+      gap: 4px;
+    }
+
+    .win-btn {
+      width: 14px;
+      height: 14px;
+      border: 1px solid #000;
+      background: var(--mc-stone);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: bold;
+      color: var(--mc-concrete);
+      cursor: pointer;
+      box-shadow: inset 1px 1px 0 var(--mc-border-light);
+    }
+
+    .win-btn.close {
+      background: var(--mc-redstone);
+      color: #FFF;
+    }
+
+    /* SIDEBAR BREACH CARDS */
+    .sidebar-filter-bar {
+      padding: 8px 10px;
+      background: var(--mc-stone);
+      border-bottom: 2px solid var(--mc-border);
+      display: flex;
+      gap: 4px;
+    }
+
+    .filter-chip {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      padding: 4px 8px;
+      background: var(--mc-deepslate);
+      border: 2px solid var(--mc-border);
+      color: var(--mc-text-dim);
+      cursor: pointer;
+    }
+
+    .filter-chip.active {
+      background: var(--mc-grass);
+      color: #FFF;
+      border-color: #7EC850;
+    }
+
+    .breach-scroll-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .b-card {
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: inset 2px 2px 0 var(--mc-border-light), 3px 3px 0 #000;
+    }
+
+    .b-card:hover {
+      border-color: var(--mc-grass);
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 #000;
+    }
+
+    .b-card.active {
+      background: rgba(91, 138, 60, 0.2);
+      border-color: var(--mc-redstone);
+      box-shadow: inset 4px 0 0 var(--mc-redstone), 3px 3px 0 #000;
+    }
+
+    .b-card.diamond-confirmed {
+      border-color: var(--mc-diamond);
+      box-shadow: inset 4px 0 0 var(--mc-diamond), 0 0 10px var(--mc-diamond-glow);
+    }
+
+    .b-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .b-card-title {
+      font-family: var(--font-cyber);
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--mc-concrete);
+      line-height: 1.3;
+    }
+
+    .b-sev {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      padding: 3px 6px;
+      border: 1px solid #000;
+      text-shadow: 1px 1px 0 #000;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .b-sev.critical {
+      background: var(--mc-redstone);
+      color: #FFF;
+    }
+
+    .b-sev.high {
+      background: var(--mc-lava);
+      color: #FFF;
+    }
+
+    .b-sev.medium {
+      background: var(--mc-gold);
+      color: #000;
+      text-shadow: none;
+    }
+
+    .b-sev.low {
+      background: var(--mc-text-muted);
+      color: #FFF;
+    }
+
+    .b-card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--mc-text-dim);
+    }
+
+    .b-card-loss {
+      font-family: var(--font-lcd);
+      font-size: 18px;
+      color: var(--mc-redstone);
+      font-weight: bold;
+    }
+
+    .b-sparkline {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 16px;
+    }
+
+    .b-bar {
+      flex: 1;
+      background: rgba(91, 138, 60, 0.3);
+      min-height: 2px;
+    }
+
+    .b-bar.active {
+      background: var(--mc-redstone);
+      box-shadow: 0 0 4px var(--mc-redstone);
+    }
+
+    /* DETAIL WORKSPACE */
+    .detail-workspace {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .boss-hp-box {
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-redstone);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .boss-hp-head {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      color: var(--mc-redstone);
+    }
+
+    .boss-hp-outer {
+      height: 12px;
+      background: #000;
+      border: 1px solid var(--mc-border);
+      overflow: hidden;
+    }
+
+    .boss-hp-inner {
+      height: 100%;
+      background: linear-gradient(90deg, var(--mc-redstone), var(--mc-lava));
+      box-shadow: 0 0 10px var(--mc-redstone);
+      transition: width 0.4s ease;
+    }
+
+    .boss-hp-inner.defeated {
+      background: var(--mc-diamond);
+      box-shadow: 0 0 10px var(--mc-diamond-glow);
+    }
+
+    .banner-validated {
+      background: rgba(79, 195, 247, 0.12);
+      border: 3px solid var(--mc-diamond);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 0 12px var(--mc-diamond-glow);
+    }
+
+    .banner-validated.running {
+      background: rgba(241, 196, 15, 0.12);
+      border-color: var(--mc-gold);
+    }
+
+    .banner-icon {
+      font-family: var(--font-pixel);
+      font-size: 16px;
+      color: var(--mc-diamond);
+    }
+
+    .detail-head-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      padding: 14px;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .detail-sig {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--mc-diamond);
+    }
+
+    .detail-main-title {
+      font-family: var(--font-cyber);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--mc-concrete);
+    }
+
+    .detail-main-desc {
+      color: var(--mc-text-dim);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* 4 STAT LCD BOXES */
+    .stat-quad-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .lcd-stat-box {
+      background: #000;
+      border: 2px solid var(--mc-border);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    .lcd-stat-lbl {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--mc-text-muted);
+      text-transform: uppercase;
+    }
+
+    .lcd-stat-val {
+      font-family: var(--font-lcd);
+      font-size: 22px;
+      font-weight: bold;
+      color: var(--mc-concrete);
+    }
+
+    .lcd-stat-val.red {
+      color: var(--mc-redstone);
+      text-shadow: 0 0 8px var(--mc-redstone);
+    }
+
+    .lcd-stat-val.emerald {
+      color: var(--mc-emerald);
+      text-shadow: 0 0 8px var(--mc-emerald);
+    }
+
+    .lcd-stat-val.gold {
+      color: var(--mc-gold);
+    }
+
+    /* DIAGNOSTICS TERMINAL */
+    .term-window {
+      background: #000;
+      border: 3px solid var(--mc-border);
+      box-shadow: 3px 3px 0 #000;
+      overflow: hidden;
+    }
+
+    .term-body {
+      padding: 14px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: var(--mc-text-dim);
+    }
+
+    .hypo-box {
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      border-left: 5px solid var(--mc-diamond);
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--mc-text-dim);
+      line-height: 1.6;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .diff-window {
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      box-shadow: 3px 3px 0 #000;
+      overflow: hidden;
+    }
+
+    .diff-content {
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .diff-content .del {
+      color: var(--mc-redstone);
+      background: rgba(192, 57, 43, 0.15);
+      display: block;
+    }
+
+    .diff-content .add {
+      color: var(--mc-emerald);
+      background: rgba(39, 174, 96, 0.15);
+      display: block;
+    }
+
+    .diff-content .neu {
+      color: var(--mc-text-dim);
+      display: block;
+    }
+
+    /* ── AGENT VIEW STYLES ── */
+    .agent-workspace {
+      flex: 1;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .agent-launch-bar {
+      background: var(--mc-stone);
+      border: 3px solid var(--mc-border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .agent-launch-btn {
+      font-family: var(--font-pixel);
+      font-size: 11px;
+      padding: 10px 20px;
+      background: var(--mc-grass);
+      color: #FFF;
+      border-color: #7EC850;
+      box-shadow: inset 2px 2px 0 #A8EA70, 0 0 14px rgba(91, 138, 60, 0.6), 4px 4px 0 #000;
+    }
+
+    .agent-launch-btn:hover:not(:disabled) {
+      background: #6DB343;
+      box-shadow: inset 2px 2px 0 #C4FF96, 0 0 20px rgba(91, 138, 60, 0.9), 5px 5px 0 #000;
+      transform: translate(-1px, -1px);
+    }
+
+    .agent-status-badge {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      padding: 6px 12px;
+      background: #000;
+      border: 2px solid var(--mc-border);
+      color: var(--mc-text-dim);
+    }
+
+    .agent-status-badge span {
+      font-weight: bold;
+    }
+
+    .agent-status-badge.ready span {
+      color: var(--mc-gold);
+    }
+
+    .agent-status-badge.investigating span {
+      color: var(--mc-diamond);
+      animation: pulse 1.2s infinite;
+    }
+
+    .agent-status-badge.complete span {
+      color: var(--mc-emerald);
+    }
+
+    .agent-status-badge.error span {
+      color: var(--mc-redstone);
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    .agent-log-window {
+      flex: 1;
+      min-height: 280px;
+      background: #000;
+      border: 3px solid var(--mc-border);
+      box-shadow: 3px 3px 0 #000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .agent-log-screen {
+      padding: 16px;
+      flex: 1;
+      max-height: 360px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .agent-log-empty {
+      color: var(--mc-text-muted);
+      font-style: italic;
+    }
+
+    @keyframes log-fade-in {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .agent-log-line {
+      animation: log-fade-in 0.25s ease-out forwards;
+      padding: 2px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      word-break: break-word;
+    }
+
+    .agent-log-line.type-start {
+      color: var(--mc-text-dim);
+    }
+
+    .agent-log-line.type-thought {
+      color: var(--mc-concrete);
+    }
+
+    .agent-log-line.type-action {
+      color: var(--mc-diamond);
+    }
+
+    .agent-log-line.type-result {
+      color: var(--mc-emerald);
+    }
+
+    .agent-log-line.type-result.err {
+      color: var(--mc-redstone);
+    }
+
+    .agent-log-line.type-complete {
+      color: #FFF;
+      font-weight: bold;
+      font-family: var(--font-pixel);
+      font-size: 10px;
+    }
+
+    .agent-log-line.type-error {
+      color: var(--mc-redstone);
+      font-weight: bold;
+    }
+
+    .tool-badge {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      padding: 2px 6px;
+      background: var(--mc-deepslate);
+      border: 1px solid var(--mc-border);
+      color: var(--mc-gold);
+      flex-shrink: 0;
+    }
+
+    /* RANKED FIX PLAN CARDS */
+    .fix-plan-window {
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      box-shadow: 3px 3px 0 #000;
+      overflow: hidden;
+    }
+
+    .fix-plan-grid {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .fix-plan-card {
+      background: var(--mc-stone);
+      border: 2px solid var(--mc-border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    .fix-rank-badge {
+      font-family: var(--font-pixel);
+      font-size: 14px;
+      color: var(--mc-gold);
+      width: 36px;
+      height: 36px;
+      background: #000;
+      border: 2px solid var(--mc-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .fix-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .fix-title {
+      font-family: var(--font-cyber);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--mc-concrete);
+    }
+
+    .fix-sig {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--mc-text-dim);
+    }
+
+    .fix-stats {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .fix-stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .fix-stat-lbl {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--mc-text-muted);
+      text-transform: uppercase;
+    }
+
+    .fix-stat-val {
+      font-family: var(--font-lcd);
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .fix-stat-val.green {
+      color: var(--mc-emerald);
+    }
+
+    .fix-stat-val.amber {
+      color: var(--mc-lava);
+    }
+
+    .fix-stat-val.gold {
+      color: var(--mc-gold);
+    }
+
+    /* MODALS */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20000;
+    }
+
+    .modal-window {
+      width: 480px;
+      max-width: 90vw;
+      background: var(--mc-stone);
+      border: 4px solid var(--mc-gold);
+      box-shadow: 6px 6px 0 #000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .achieve-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--mc-border);
+      background: var(--mc-deepslate);
+    }
+
+    .achieve-icon {
+      font-size: 24px;
+    }
+
+    .achieve-title {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      color: var(--mc-gold);
+    }
+
+    .achieve-desc {
+      font-size: 11px;
+      color: var(--mc-text-dim);
+    }
+
+    /* EVAL METRICS DECK */
+    .metrics-workspace {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .hero-quad {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .hero-score-card {
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .hero-score-val {
+      font-family: var(--font-lcd);
+      font-size: 34px;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .hero-score-val.emerald {
+      color: var(--mc-emerald);
+      text-shadow: 0 0 10px var(--mc-emerald);
+    }
+
+    .hero-score-val.red {
+      color: var(--mc-redstone);
+      text-shadow: 0 0 10px var(--mc-redstone);
+    }
+
+    .hero-score-val.diamond {
+      color: var(--mc-diamond);
+      text-shadow: 0 0 10px var(--mc-diamond);
+    }
+
+    .metrics-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .brutal-table-card {
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-border);
+      box-shadow: 3px 3px 0 #000;
+      overflow: hidden;
+    }
+
+    .brutal-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .brutal-table th,
+    .brutal-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--mc-border);
+      font-size: 12px;
+      text-align: left;
+    }
+
+    .brutal-table th {
+      background: #000;
+      font-family: var(--font-pixel);
+      color: var(--mc-gold);
+      font-size: 9px;
+    }
+
+    .bar-outer-b {
+      height: 8px;
+      background: #000;
+      border: 1px solid var(--mc-border);
+      overflow: hidden;
+    }
+
+    .bar-inner-b {
+      height: 100%;
+      background: var(--mc-emerald);
+    }
+
+    /* TOAST */
+    .toast-box {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--mc-deepslate);
+      border: 3px solid var(--mc-gold);
+      padding: 12px 20px;
+      font-family: var(--font-pixel);
+      font-size: 10px;
+      color: #FFF;
+      box-shadow: 4px 4px 0 #000;
+      transform: translateY(80px);
+      transition: transform 0.2s ease;
+      z-index: 10000;
+    }
+
+    .toast-box.show {
+      transform: translateY(0);
+    }
+
+    .loader-screen {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+  </style>
 </head>
+
 <body class="crt-active">
 
-<div id="app"></div>
-<div class="toast-box" id="toast"></div>
+  <div id="app"></div>
+  <div class="toast-box" id="toast"></div>
 
-<script>
-const API = 'http://localhost:8000';
+  <script>
+    const API = 'https://revenue-bleed.onrender.com';
 
-let state = {
-  tab: 'breaches',
-  breaches: [],
-  metrics: {},
-  pipeline: {},
-  selectedId: null,
-  loading: true,
-  reproRunning: false,
-  sfxEnabled: true,
-  crtEnabled: true,
-  filter: 'all',
-  
-  // Gamification State
-  xp: 150,
-  level: 1,
-  achievements: {
-    first_blood: { id: 'first_blood', name: 'FIRST BLOOD', desc: 'Trigger your first reproduction run', unlocked: false, xp: 100, icon: '🎯' },
-    confirmed_kill: { id: 'confirmed_kill', name: 'DIAMOND HUNTER', desc: 'Confirm a bug signature via telemetry replay', unlocked: false, xp: 250, icon: '💎' },
-    patch_master: { id: 'patch_master', name: 'PATCH CRAFTER', desc: 'Copy a code patch to clipboard', unlocked: false, xp: 50, icon: '📜' },
-    high_roller: { id: 'high_roller', name: 'REVENUE RECOVERER', desc: 'Inspect a breach with >₹100,000 loss', unlocked: false, xp: 150, icon: '🪙' },
-  },
-  showAchievementsModal: false,
+    let state = {
+      tab: 'breaches',
+      breaches: [],
+      metrics: {},
+      pipeline: {},
+      selectedId: null,
+      loading: true,
+      reproRunning: false,
+      sfxEnabled: true,
+      crtEnabled: true,
+      filter: 'all',
 
-  // Agent State
-  agentStatus: 'ready', // 'ready' | 'investigating' | 'complete' | 'error'
-  agentLogs: [], // { type, message, tool, result }
-  agentFixPlan: null, // { fix_plan: [...], total_monthly_recovery: ... }
-};
+      // Gamification State
+      xp: 150,
+      level: 1,
+      achievements: {
+        first_blood: { id: 'first_blood', name: 'FIRST BLOOD', desc: 'Trigger your first reproduction run', unlocked: false, xp: 100, icon: '🎯' },
+        confirmed_kill: { id: 'confirmed_kill', name: 'DIAMOND HUNTER', desc: 'Confirm a bug signature via telemetry replay', unlocked: false, xp: 250, icon: '💎' },
+        patch_master: { id: 'patch_master', name: 'PATCH CRAFTER', desc: 'Copy a code patch to clipboard', unlocked: false, xp: 50, icon: '📜' },
+        high_roller: { id: 'high_roller', name: 'REVENUE RECOVERER', desc: 'Inspect a breach with >₹100,000 loss', unlocked: false, xp: 150, icon: '🪙' },
+      },
+      showAchievementsModal: false,
 
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function playBeep(freq = 440, type = 'square', duration = 0.08) {
-  if (!state.sfxEnabled) return;
-  try {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + duration);
-  } catch(e) {}
-}
+      // Agent State
+      agentStatus: 'ready', // 'ready' | 'investigating' | 'complete' | 'error'
+      agentLogs: [], // { type, message, tool, result }
+      agentFixPlan: null, // { fix_plan: [...], total_monthly_recovery: ... }
+    };
 
-function addXP(amount, reason) {
-  state.xp += amount;
-  const nextLevelXP = state.level * 300;
-  if (state.xp >= nextLevelXP) {
-    state.level += 1;
-    playBeep(900, 'triangle', 0.3);
-    showToast(`🎉 LEVEL UP! YOU ARE NOW LEVEL ${state.level}`);
-  } else {
-    showToast(`+${amount} XP (${reason})`);
-  }
-  render();
-}
-
-function unlockAchievement(id) {
-  if (state.achievements[id] && !state.achievements[id].unlocked) {
-    state.achievements[id].unlocked = true;
-    addXP(state.achievements[id].xp, `ACHIEVEMENT: ${state.achievements[id].name}`);
-    playBeep(1200, 'sine', 0.4);
-  }
-}
-
-async function fetchAll() {
-  try {
-    const [br, mt, pl] = await Promise.all([
-      fetch(`${API}/breaches`).then(r => r.json()),
-      fetch(`${API}/metrics`).then(r => r.json()),
-      fetch(`${API}/pipeline/live`).then(r => r.json()),
-    ]);
-    state.breaches = br.breaches || [];
-    state.metrics  = mt;
-    state.pipeline = pl;
-    state.loading  = false;
-    if (!state.selectedId && state.breaches.length > 0) {
-      state.selectedId = state.breaches[0].id;
-    }
-    render();
-  } catch(e) {
-    console.error(e);
-    state.loading = false;
-    render();
-  }
-}
-
-async function triggerRepro(breachId) {
-  playBeep(880, 'square', 0.15);
-  state.reproRunning = true;
-  unlockAchievement('first_blood');
-  
-  const idx = state.breaches.findIndex(b => b.id === breachId);
-  if (idx !== -1) {
-    state.breaches[idx].reproduction = { status: 'running' };
-  }
-  render();
-
-  try {
-    await fetch(`${API}/breaches/${breachId}/reproduce`, { method: 'POST' });
-    
-    const poll = async () => {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(freq = 440, type = 'square', duration = 0.08) {
+      if (!state.sfxEnabled) return;
       try {
-        const statusRes = await fetch(`${API}/breaches/${breachId}/reproduction/status`).then(r => r.json());
-        
-        if (idx !== -1) {
-          state.breaches[idx].reproduction = statusRes;
-          if (statusRes.status === 'confirmed') {
-            state.breaches[idx].status = 'confirmed';
-          }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) { }
+    }
+
+    function addXP(amount, reason) {
+      state.xp += amount;
+      const nextLevelXP = state.level * 300;
+      if (state.xp >= nextLevelXP) {
+        state.level += 1;
+        playBeep(900, 'triangle', 0.3);
+        showToast(`🎉 LEVEL UP! YOU ARE NOW LEVEL ${state.level}`);
+      } else {
+        showToast(`+${amount} XP (${reason})`);
+      }
+      render();
+    }
+
+    function unlockAchievement(id) {
+      if (state.achievements[id] && !state.achievements[id].unlocked) {
+        state.achievements[id].unlocked = true;
+        addXP(state.achievements[id].xp, `ACHIEVEMENT: ${state.achievements[id].name}`);
+        playBeep(1200, 'sine', 0.4);
+      }
+    }
+
+    async function fetchAll() {
+      try {
+        const [br, mt, pl] = await Promise.all([
+          fetch(`${API}/breaches`).then(r => r.json()),
+          fetch(`${API}/metrics`).then(r => r.json()),
+          fetch(`${API}/pipeline/live`).then(r => r.json()),
+        ]);
+        state.breaches = br.breaches || [];
+        state.metrics = mt;
+        state.pipeline = pl;
+        state.loading = false;
+        if (!state.selectedId && state.breaches.length > 0) {
+          state.selectedId = state.breaches[0].id;
         }
         render();
+      } catch (e) {
+        console.error(e);
+        state.loading = false;
+        render();
+      }
+    }
 
-        if (statusRes.status === 'running' || statusRes.status === 'pending') {
-          setTimeout(poll, 800);
-        } else {
-          const updated = await fetch(`${API}/breaches/${breachId}`).then(r => r.json());
-          if (idx !== -1) {
-            state.breaches[idx] = updated;
+    async function triggerRepro(breachId) {
+      playBeep(880, 'square', 0.15);
+      state.reproRunning = true;
+      unlockAchievement('first_blood');
+
+      const idx = state.breaches.findIndex(b => b.id === breachId);
+      if (idx !== -1) {
+        state.breaches[idx].reproduction = { status: 'running' };
+      }
+      render();
+
+      try {
+        await fetch(`${API}/breaches/${breachId}/reproduce`, { method: 'POST' });
+
+        const poll = async () => {
+          try {
+            const statusRes = await fetch(`${API}/breaches/${breachId}/reproduction/status`).then(r => r.json());
+
+            if (idx !== -1) {
+              state.breaches[idx].reproduction = statusRes;
+              if (statusRes.status === 'confirmed') {
+                state.breaches[idx].status = 'confirmed';
+              }
+            }
+            render();
+
+            if (statusRes.status === 'running' || statusRes.status === 'pending') {
+              setTimeout(poll, 800);
+            } else {
+              const updated = await fetch(`${API}/breaches/${breachId}`).then(r => r.json());
+              if (idx !== -1) {
+                state.breaches[idx] = updated;
+              }
+              state.reproRunning = false;
+              render();
+              if (updated.reproduction?.confirmed) {
+                unlockAchievement('confirmed_kill');
+                playBeep(1200, 'sine', 0.2);
+                showToast('💎 DIAMOND CONFIRMED BY TELEMETRY REPLAY!');
+              } else {
+                showToast('✗ COULD NOT REPRODUCE AUTOMATICALLY');
+              }
+            }
+          } catch (e) {
+            console.error(e);
+            state.reproRunning = false;
+            render();
+            showToast('Error polling reproduction status');
           }
-          state.reproRunning = false;
-          render();
-          if (updated.reproduction?.confirmed) {
-            unlockAchievement('confirmed_kill');
-            playBeep(1200, 'sine', 0.2);
-            showToast('💎 DIAMOND CONFIRMED BY TELEMETRY REPLAY!');
-          } else {
-            showToast('✗ COULD NOT REPRODUCE AUTOMATICALLY');
-          }
-        }
+        };
+
+        setTimeout(poll, 800);
       } catch (e) {
         console.error(e);
         state.reproRunning = false;
         render();
-        showToast('Error polling reproduction status');
+        showToast('Failed to trigger reproduction');
       }
-    };
-    
-    setTimeout(poll, 800);
-  } catch(e) {
-    console.error(e);
-    state.reproRunning = false;
-    render();
-    showToast('Failed to trigger reproduction');
-  }
-}
-
-async function launchAgent() {
-  state.agentStatus = 'investigating';
-  state.agentLogs = [];
-  state.agentFixPlan = null;
-  playBeep(880, 'square', 0.2);
-  render();
-
-  try {
-    const response = await fetch(`${API}/agent/investigate`, { method: 'POST' });
-    if (!response.ok) {
-      state.agentStatus = 'error';
-      state.agentLogs.push({ type: 'error', message: `HTTP ${response.status}: Failed to launch agent` });
-      render();
-      return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
+    async function launchAgent() {
+      state.agentStatus = 'investigating';
+      state.agentLogs = [];
+      state.agentFixPlan = null;
+      playBeep(880, 'square', 0.2);
+      render();
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      try {
+        const response = await fetch(`${API}/agent/investigate`, { method: 'POST' });
+        if (!response.ok) {
+          state.agentStatus = 'error';
+          state.agentLogs.push({ type: 'error', message: `HTTP ${response.status}: Failed to launch agent` });
+          render();
+          return;
+        }
 
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop(); // keep partial chunk
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
 
-      for (const chunk of lines) {
-        const line = chunk.trim();
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            handleAgentSSEEvent(data);
-          } catch(e) {
-            console.error('SSE parse error', e);
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop(); // keep partial chunk
+
+          for (const chunk of lines) {
+            const line = chunk.trim();
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                handleAgentSSEEvent(data);
+              } catch (e) {
+                console.error('SSE parse error', e);
+              }
+            }
           }
         }
+      } catch (e) {
+        console.error(e);
+        state.agentStatus = 'error';
+        state.agentLogs.push({ type: 'error', message: `Connection error: ${e.message}` });
+        render();
       }
     }
-  } catch(e) {
-    console.error(e);
-    state.agentStatus = 'error';
-    state.agentLogs.push({ type: 'error', message: `Connection error: ${e.message}` });
-    render();
-  }
-}
 
-function handleAgentSSEEvent(data) {
-  const { type, message, tool, result } = data;
+    function handleAgentSSEEvent(data) {
+      const { type, message, tool, result } = data;
 
-  if (type === 'action') {
-    playBeep(600, 'sine', 0.04);
-  } else if (type === 'result') {
-    if (tool === 'reproduce_bug' && result && result.confirmed) {
-      playBeep(1000, 'sine', 0.15);
-      // Real-time update to War Room breach cards
-      const targetBreach = state.breaches.find(b => b.bug_signature === result.bug_signature || (b.reproduction && b.reproduction.recipe && b.reproduction.recipe.bug_signature === result.bug_signature));
-      if (targetBreach) {
-        targetBreach.status = 'confirmed';
-        if (!targetBreach.reproduction) targetBreach.reproduction = {};
-        targetBreach.reproduction.confirmed = true;
+      if (type === 'action') {
+        playBeep(600, 'sine', 0.04);
+      } else if (type === 'result') {
+        if (tool === 'reproduce_bug' && result && result.confirmed) {
+          playBeep(1000, 'sine', 0.15);
+          // Real-time update to War Room breach cards
+          const targetBreach = state.breaches.find(b => b.bug_signature === result.bug_signature || (b.reproduction && b.reproduction.recipe && b.reproduction.recipe.bug_signature === result.bug_signature));
+          if (targetBreach) {
+            targetBreach.status = 'confirmed';
+            if (!targetBreach.reproduction) targetBreach.reproduction = {};
+            targetBreach.reproduction.confirmed = true;
+          }
+        } else if (tool === 'generate_fix_plan' && result && result.fix_plan) {
+          state.agentFixPlan = result;
+        }
+      } else if (type === 'complete') {
+        state.agentStatus = 'complete';
+        playBeep(1200, 'sine', 0.3);
+        unlockAchievement('confirmed_kill');
+      } else if (type === 'error') {
+        state.agentStatus = 'error';
       }
-    } else if (tool === 'generate_fix_plan' && result && result.fix_plan) {
-      state.agentFixPlan = result;
+
+      state.agentLogs.push({ type, message, tool, result });
+      render();
+
+      // Auto scroll terminal to bottom
+      const logScreen = document.getElementById('agent-log-screen');
+      if (logScreen) {
+        logScreen.scrollTop = logScreen.scrollHeight;
+      }
     }
-  } else if (type === 'complete') {
-    state.agentStatus = 'complete';
-    playBeep(1200, 'sine', 0.3);
-    unlockAchievement('confirmed_kill');
-  } else if (type === 'error') {
-    state.agentStatus = 'error';
-  }
 
-  state.agentLogs.push({ type, message, tool, result });
-  render();
+    async function doRefresh() {
+      playBeep(600, 'triangle', 0.1);
+      state.loading = true;
+      render();
+      await fetch(`${API}/refresh`, { method: 'POST' });
+      await fetchAll();
+    }
 
-  // Auto scroll terminal to bottom
-  const logScreen = document.getElementById('agent-log-screen');
-  if (logScreen) {
-    logScreen.scrollTop = logScreen.scrollHeight;
-  }
-}
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
 
-async function doRefresh() {
-  playBeep(600, 'triangle', 0.1);
-  state.loading = true;
-  render();
-  await fetch(`${API}/refresh`, { method: 'POST' });
-  await fetchAll();
-}
+    function copyToClipboard(text) {
+      playBeep(520, 'square', 0.05);
+      unlockAchievement('patch_master');
+      navigator.clipboard.writeText(text).catch(() => { });
+      showToast('COPIED PATCH TO CLIPBOARD');
+    }
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+    function render() {
+      document.getElementById('app').innerHTML = buildHTML();
+      bindEvents();
+      startParticles();
 
-function copyToClipboard(text) {
-  playBeep(520, 'square', 0.05);
-  unlockAchievement('patch_master');
-  navigator.clipboard.writeText(text).catch(() => {});
-  showToast('COPIED PATCH TO CLIPBOARD');
-}
+      if (!state.loading) {
+        const totalAtRisk = state.pipeline.summary?.rupees_at_risk || 0;
+        animateRupeeCounter(totalAtRisk);
+      }
 
-function render() {
-  document.getElementById('app').innerHTML = buildHTML();
-  bindEvents();
-  startParticles();
-  
-  if (!state.loading) {
-    const totalAtRisk = state.pipeline.summary?.rupees_at_risk || 0;
-    animateRupeeCounter(totalAtRisk);
-  }
+      const logScreen = document.getElementById('agent-log-screen');
+      if (logScreen) {
+        logScreen.scrollTop = logScreen.scrollHeight;
+      }
+    }
 
-  const logScreen = document.getElementById('agent-log-screen');
-  if (logScreen) {
-    logScreen.scrollTop = logScreen.scrollHeight;
-  }
-}
+    function fmt(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
 
-function fmt(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+    let lastAnimatedRupees = 0;
+    let rupeeAnimId = null;
 
-let lastAnimatedRupees = 0;
-let rupeeAnimId = null;
+    function animateRupeeCounter(target) {
+      const el = document.getElementById('rupee-loss-counter');
+      if (!el) return;
 
-function animateRupeeCounter(target) {
-  const el = document.getElementById('rupee-loss-counter');
-  if (!el) return;
+      const start = lastAnimatedRupees;
+      const end = target;
 
-  const start = lastAnimatedRupees;
-  const end = target;
+      if (start === end) {
+        el.textContent = fmt(end);
+        return;
+      }
 
-  if (start === end) {
-    el.textContent = fmt(end);
-    return;
-  }
+      if (rupeeAnimId) cancelAnimationFrame(rupeeAnimId);
 
-  if (rupeeAnimId) cancelAnimationFrame(rupeeAnimId);
+      const duration = 1500;
+      const startTime = performance.now();
 
-  const duration = 1500;
-  const startTime = performance.now();
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = progress * (2 - progress);
+        const current = Math.round(start + (end - start) * ease);
+        el.textContent = fmt(current);
 
-  function step(now) {
-    const elapsed = now - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const ease = progress * (2 - progress);
-    const current = Math.round(start + (end - start) * ease);
-    el.textContent = fmt(current);
+        if (progress < 1) {
+          rupeeAnimId = requestAnimationFrame(step);
+        } else {
+          lastAnimatedRupees = end;
+          rupeeAnimId = null;
+        }
+      }
 
-    if (progress < 1) {
       rupeeAnimId = requestAnimationFrame(step);
-    } else {
-      lastAnimatedRupees = end;
-      rupeeAnimId = null;
     }
-  }
 
-  rupeeAnimId = requestAnimationFrame(step);
-}
-
-function buildHTML() {
-  const s = state;
-  if (s.loading) {
-    return `
+    function buildHTML() {
+      const s = state;
+      if (s.loading) {
+        return `
       <div class="loader-screen">
         <div style="font-family:var(--font-pixel); font-size:12px; color:var(--mc-gold)">INITIALIZING FORENSICS ENGINE...</div>
       </div>`;
-  }
+      }
 
-  const summary = s.pipeline.summary || {};
-  const selected = s.breaches.find(b => b.id === s.selectedId);
+      const summary = s.pipeline.summary || {};
+      const selected = s.breaches.find(b => b.id === s.selectedId);
 
-  return `
+      return `
     <div class="marquee-ticker">
       <div class="marquee-content">
         ⚡ REVENUE BLEED FORENSICS // LIVE TELEMETRY ACTIVE // AUTONOMOUS AGENT READY // PLAYER LEVEL ${s.level} // REVENUE AT RISK MONITORING ONLINE ⚡
@@ -1315,27 +1624,27 @@ function buildHTML() {
     ${buildHeader()}
     <div class="main-workspace">
       ${s.tab === 'metrics'
-        ? buildMetricsView()
-        : s.tab === 'agent'
-        ? buildAgentView()
-        : `
+          ? buildMetricsView()
+          : s.tab === 'agent'
+            ? buildAgentView()
+            : `
           ${buildPipeline()}
           <div class="war-room-grid">
             ${buildSidebar()}
             ${buildDetail(selected)}
           </div>
         `
-      }
+        }
     </div>
     ${s.showAchievementsModal ? buildAchievementsModal() : ''}`;
-}
+    }
 
-function buildHeader() {
-  const s = state;
-  const nextLevelXP = s.level * 300;
-  const xpPct = Math.min(100, (s.xp / nextLevelXP) * 100);
+    function buildHeader() {
+      const s = state;
+      const nextLevelXP = s.level * 300;
+      const xpPct = Math.min(100, (s.xp / nextLevelXP) * 100);
 
-  return `
+      return `
   <div class="app-header">
     <div class="header-brand">
       <div class="brand-logo">💻 REVENUE <span>BLEED</span></div>
@@ -1369,28 +1678,28 @@ function buildHeader() {
       <button class="mc-btn" id="refresh-btn">↺ Refresh</button>
     </div>
   </div>`;
-}
+    }
 
-function buildPipeline() {
-  const nodes = [
-    { id: 'orders',   label: 'ORDERS',   cls: 'orders' },
-    { id: 'gateway',  label: 'RAZORPAY', cls: 'gateway' },
-    { id: 'bank',     label: 'BANK GW',  cls: 'bank' },
-    { id: 'merchant', label: 'MERCHANT', cls: 'merchant' },
-  ];
+    function buildPipeline() {
+      const nodes = [
+        { id: 'orders', label: 'ORDERS', cls: 'orders' },
+        { id: 'gateway', label: 'RAZORPAY', cls: 'gateway' },
+        { id: 'bank', label: 'BANK GW', cls: 'bank' },
+        { id: 'merchant', label: 'MERCHANT', cls: 'merchant' },
+      ];
 
-  const pipes = [0, 1, 2].map(i => {
-    const crackHtml = i === 2 ? `<div class="p-crack"><div class="p-drip"></div></div>` : '';
-    return `<div class="p-pipe" id="pipe-${i}">${crackHtml}</div>`;
-  });
+      const pipes = [0, 1, 2].map(i => {
+        const crackHtml = i === 2 ? `<div class="p-crack"><div class="p-drip"></div></div>` : '';
+        return `<div class="p-pipe" id="pipe-${i}">${crackHtml}</div>`;
+      });
 
-  let nodesHtml = '';
-  nodes.forEach((n, i) => {
-    nodesHtml += `<div class="p-node ${n.cls}">${n.label}</div>`;
-    if (i < pipes.length) nodesHtml += pipes[i];
-  });
+      let nodesHtml = '';
+      nodes.forEach((n, i) => {
+        nodesHtml += `<div class="p-node ${n.cls}">${n.label}</div>`;
+        if (i < pipes.length) nodesHtml += pipes[i];
+      });
 
-  return `
+      return `
   <div class="pipeline-window">
     <div class="pipeline-meta">
       <span class="pipeline-title">⚡ Live Transaction Pipeline Telemetry Feed</span>
@@ -1400,17 +1709,17 @@ function buildPipeline() {
       ${nodesHtml}
     </div>
   </div>`;
-}
+    }
 
-function buildSidebar() {
-  const { breaches, selectedId, filter } = state;
-  const filtered = breaches.filter(b => {
-    if (filter === 'critical') return b.severity.toLowerCase() === 'critical';
-    if (filter === 'high') return b.severity.toLowerCase() === 'high';
-    return true;
-  });
+    function buildSidebar() {
+      const { breaches, selectedId, filter } = state;
+      const filtered = breaches.filter(b => {
+        if (filter === 'critical') return b.severity.toLowerCase() === 'critical';
+        if (filter === 'high') return b.severity.toLowerCase() === 'high';
+        return true;
+      });
 
-  return `
+      return `
   <div class="mc-window">
     <div class="window-header">
       <span>ACTIVE_BREACHES.EXE [${filtered.length}]</span>
@@ -1429,18 +1738,18 @@ function buildSidebar() {
       ${filtered.map(b => buildBreachCard(b, b.id === selectedId)).join('')}
     </div>
   </div>`;
-}
+    }
 
-function buildBreachCard(b, isActive) {
-  const isConfirmed = b.reproduction?.confirmed || b.status === 'confirmed';
-  const max = Math.max(...b.sparkline, 1);
-  const sparkBars = b.sparkline.map((v, i) => {
-    const h = Math.max(2, Math.round((v / max) * 16));
-    const isHot = i >= 18;
-    return `<div class="b-bar ${isHot && v > 0 ? 'active' : ''}" style="height:${h}px"></div>`;
-  }).join('');
+    function buildBreachCard(b, isActive) {
+      const isConfirmed = b.reproduction?.confirmed || b.status === 'confirmed';
+      const max = Math.max(...b.sparkline, 1);
+      const sparkBars = b.sparkline.map((v, i) => {
+        const h = Math.max(2, Math.round((v / max) * 16));
+        const isHot = i >= 18;
+        return `<div class="b-bar ${isHot && v > 0 ? 'active' : ''}" style="height:${h}px"></div>`;
+      }).join('');
 
-  return `
+      return `
   <div class="b-card ${isActive ? 'active' : ''} ${isConfirmed ? 'diamond-confirmed' : ''}" data-breach-id="${b.id}">
     <div class="b-card-header">
       <span class="b-card-title">${b.title}</span>
@@ -1453,11 +1762,11 @@ function buildBreachCard(b, isActive) {
     </div>
     <div class="b-sparkline">${sparkBars}</div>
   </div>`;
-}
+    }
 
-function buildDetail(b) {
-  if (!b) {
-    return `
+    function buildDetail(b) {
+      if (!b) {
+        return `
     <div class="mc-window" style="flex:1;">
       <div class="window-header">
         <span>NO_SELECTION</span>
@@ -1466,19 +1775,19 @@ function buildDetail(b) {
         Select a breach to analyze telemetry
       </div>
     </div>`;
-  }
+      }
 
-  if (b.rupees_lost > 100000) unlockAchievement('high_roller');
+      if (b.rupees_lost > 100000) unlockAchievement('high_roller');
 
-  const repro = b.reproduction || {};
-  const recipe = repro.recipe || b.reproduction?.recipe;
+      const repro = b.reproduction || {};
+      const recipe = repro.recipe || b.reproduction?.recipe;
 
-  const isConfirmed = repro.confirmed || b.status === 'confirmed';
-  const bossHP = isConfirmed ? 0 : 100;
+      const isConfirmed = repro.confirmed || b.status === 'confirmed';
+      const bossHP = isConfirmed ? 0 : 100;
 
-  const bannerHtml = (() => {
-    if (isConfirmed) {
-      return `
+      const bannerHtml = (() => {
+        if (isConfirmed) {
+          return `
       <div class="banner-validated">
         <span class="banner-icon">💎</span>
         <div>
@@ -1486,9 +1795,9 @@ function buildDetail(b) {
           <div style="font-size:11px; color:var(--mc-text-dim)">Automated validation call triggered targeted error response. Bug signature confirmed.</div>
         </div>
       </div>`;
-    }
-    if (repro.status === 'running') {
-      return `
+        }
+        if (repro.status === 'running') {
+          return `
       <div class="banner-validated running">
         <span class="banner-icon">⏳</span>
         <div>
@@ -1496,22 +1805,22 @@ function buildDetail(b) {
           <div style="font-size:11px; color:var(--mc-text-dim)">Executing client simulator request inside Razorpay test sandbox...</div>
         </div>
       </div>`;
-    }
-    return '';
-  })();
+        }
+        return '';
+      })();
 
-  const terminalContent = buildTerminalOutput(b, repro);
+      const terminalContent = buildTerminalOutput(b, repro);
 
-  const fixLines = b.fix ? b.fix.split('\n').map(line => {
-    if (line.startsWith('-')) return `<span class="del">${line}</span>`;
-    if (line.startsWith('+')) return `<span class="add">${line}</span>`;
-    return `<span class="neu">${line}</span>`;
-  }).join('\n') : '';
+      const fixLines = b.fix ? b.fix.split('\n').map(line => {
+        if (line.startsWith('-')) return `<span class="del">${line}</span>`;
+        if (line.startsWith('+')) return `<span class="add">${line}</span>`;
+        return `<span class="neu">${line}</span>`;
+      }).join('\n') : '';
 
-  const recoverable = b.rupees_recoverable || b.rupees_lost * 0.9;
-  const monthly = b.monthly_projection || b.rupees_lost * 30;
+      const recoverable = b.rupees_recoverable || b.rupees_lost * 0.9;
+      const monthly = b.monthly_projection || b.rupees_lost * 30;
 
-  return `
+      return `
   <div class="mc-window" style="flex:1;">
     <div class="window-header">
       <span>FORENSIC_ANALYSIS_WORKSPACE.SYS // ID: ${b.id}</span>
@@ -1599,91 +1908,91 @@ function buildDetail(b) {
       </div>
     </div>
   </div>`;
-}
+    }
 
-function buildTerminalOutput(b, repro) {
-  const recipe = repro.recipe || b.reproduction?.recipe;
-  const evidence = repro.evidence;
-  
-  if (state.reproRunning || repro.status === 'running') {
-    return `
+    function buildTerminalOutput(b, repro) {
+      const recipe = repro.recipe || b.reproduction?.recipe;
+      const evidence = repro.evidence;
+
+      if (state.reproRunning || repro.status === 'running') {
+        return `
 <span style="color:var(--mc-diamond)">$ </span><span style="color:#FFF; font-weight:bold">razorpay-repro --signature ${b.bug_signature}</span>
 
 <span style="color:var(--mc-gold)">// [RUNNING] Firing payload to Sandbox API...</span>
 <span style="color:#60A5FA">→ Target:</span> <span style="color:#34D399">https://api.razorpay.com/v1</span>
 <span style="color:#60A5FA">→ Status:</span> <span style="color:var(--mc-gold)">Polling Replay Status (800ms)</span>`;
-  }
-  
-  if (!recipe && !evidence) {
-    return `<span style="color:var(--mc-text-muted)">// No automated reproduction recipe available for this breach.</span>`;
-  }
-  
-  if (evidence) {
-    let output = `<span style="color:var(--mc-diamond)">$ </span><span style="color:#FFF; font-weight:bold">razorpay-repro --signature ${b.bug_signature}</span>\n\n`;
-    
-    if (evidence.call) {
-      const call = evidence.call;
-      const resp = evidence.response || {};
-      output += `<span style="color:var(--mc-text-muted)">// Executing HTTP Request...</span>\n`;
-      output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">${call.method} ${call.path || call.endpoint || ''}</span>\n`;
-      if (call.body) output += `<span style="color:#60A5FA">  Payload</span>  <span style="color:#34D399">${JSON.stringify(call.body)}</span>\n`;
-      output += `\n`;
-      if (resp.status_code) {
-        const isErr = resp.status_code >= 400;
-        output += `<span style="color:#60A5FA">← Response</span> <span style="color:${isErr ? 'var(--mc-redstone)' : 'var(--mc-emerald)'}; font-weight:bold">${resp.status_code}</span>\n`;
-        output += `<span style="color:#60A5FA">  Body</span>     <span style="color:#34D399">${JSON.stringify(resp.body?.error || resp.body || {})}</span>\n`;
       }
-    }
-    
-    if (evidence.call_1 && evidence.call_2) {
-      const c1 = evidence.call_1.response || {};
-      const c2 = evidence.call_2.response || {};
-      output += `<span style="color:var(--mc-text-muted)">// Call 1: ${evidence.call_1.note || ''}</span>\n`;
-      output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">POST /orders</span>\n`;
-      output += `<span style="color:#60A5FA">← Response</span> <span style="color:var(--mc-emerald); font-weight:bold">${c1.status_code || ''}</span>\n\n`;
-      
-      output += `<span style="color:var(--mc-text-muted)">// Call 2: ${evidence.call_2.note || ''}</span>\n`;
-      output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">POST /orders (Duplicate)</span>\n`;
-      const isErr = c2.status_code >= 400;
-      output += `<span style="color:#60A5FA">← Response</span> <span style="color:${isErr ? 'var(--mc-redstone)' : 'var(--mc-emerald)'}; font-weight:bold">${c2.status_code || ''}</span>\n`;
-      if (c2.body) {
-        output += `<span style="color:#60A5FA">  Body</span>     <span style="color:#34D399">${JSON.stringify(c2.body?.error || c2.body || {})}</span>\n`;
-      }
-    }
-    
-    if (evidence.call_good && evidence.call_bad) {
-      const cg = evidence.call_good.response || {};
-      const cb = evidence.call_bad.response || {};
-      output += `<span style="color:var(--mc-text-muted)">// Call 1: ${evidence.call_good.note || ''}</span>\n`;
-      output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">GET /payments</span>\n`;
-      output += `<span style="color:#60A5FA">← Response</span> <span style="color:var(--mc-emerald); font-weight:bold">${cg.status_code || ''}</span>\n\n`;
-      
-      output += `<span style="color:var(--mc-text-muted)">// Call 2: ${evidence.call_bad.note || ''}</span>\n`;
-      output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">GET /payments (Invalid Auth)</span>\n`;
-      const isErr = cb.status_code >= 400;
-      output += `<span style="color:#60A5FA">← Response</span> <span style="color:${isErr ? 'var(--mc-redstone)' : 'var(--mc-emerald)'}; font-weight:bold">${cb.status_code || ''}</span>\n`;
-      if (cb.body) {
-        output += `<span style="color:#60A5FA">  Body</span>     <span style="color:#34D399">${JSON.stringify(cb.body?.error || cb.body || {})}</span>\n`;
-      }
-    }
-    
-    output += `\n`;
-    const matched = evidence.matched;
-    output += `<span style="font-weight:bold; color:${matched ? 'var(--mc-diamond)' : 'var(--mc-redstone)'}">${matched ? '💎 DIAMOND MATCH — Bug signature confirmed programmatically' : '✗ NO MATCH — Hypothesis rejected'}</span>\n`;
-    output += `<span style="color:var(--mc-text-muted)">// API calls consumed: ${repro.calls_used || 0} / 10</span>`;
-    
-    return output;
-  }
-  
-  return `<span style="color:var(--mc-text-muted)">// Click "Run reproduction" to fire API test calls.</span>`;
-}
 
-// ── AGENT VIEW BUILDER ──
-function buildAgentView() {
-  const s = state;
-  const isInvestigating = s.agentStatus === 'investigating';
+      if (!recipe && !evidence) {
+        return `<span style="color:var(--mc-text-muted)">// No automated reproduction recipe available for this breach.</span>`;
+      }
 
-  return `
+      if (evidence) {
+        let output = `<span style="color:var(--mc-diamond)">$ </span><span style="color:#FFF; font-weight:bold">razorpay-repro --signature ${b.bug_signature}</span>\n\n`;
+
+        if (evidence.call) {
+          const call = evidence.call;
+          const resp = evidence.response || {};
+          output += `<span style="color:var(--mc-text-muted)">// Executing HTTP Request...</span>\n`;
+          output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">${call.method} ${call.path || call.endpoint || ''}</span>\n`;
+          if (call.body) output += `<span style="color:#60A5FA">  Payload</span>  <span style="color:#34D399">${JSON.stringify(call.body)}</span>\n`;
+          output += `\n`;
+          if (resp.status_code) {
+            const isErr = resp.status_code >= 400;
+            output += `<span style="color:#60A5FA">← Response</span> <span style="color:${isErr ? 'var(--mc-redstone)' : 'var(--mc-emerald)'}; font-weight:bold">${resp.status_code}</span>\n`;
+            output += `<span style="color:#60A5FA">  Body</span>     <span style="color:#34D399">${JSON.stringify(resp.body?.error || resp.body || {})}</span>\n`;
+          }
+        }
+
+        if (evidence.call_1 && evidence.call_2) {
+          const c1 = evidence.call_1.response || {};
+          const c2 = evidence.call_2.response || {};
+          output += `<span style="color:var(--mc-text-muted)">// Call 1: ${evidence.call_1.note || ''}</span>\n`;
+          output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">POST /orders</span>\n`;
+          output += `<span style="color:#60A5FA">← Response</span> <span style="color:var(--mc-emerald); font-weight:bold">${c1.status_code || ''}</span>\n\n`;
+
+          output += `<span style="color:var(--mc-text-muted)">// Call 2: ${evidence.call_2.note || ''}</span>\n`;
+          output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">POST /orders (Duplicate)</span>\n`;
+          const isErr = c2.status_code >= 400;
+          output += `<span style="color:#60A5FA">← Response</span> <span style="color:${isErr ? 'var(--mc-redstone)' : 'var(--mc-emerald)'}; font-weight:bold">${c2.status_code || ''}</span>\n`;
+          if (c2.body) {
+            output += `<span style="color:#60A5FA">  Body</span>     <span style="color:#34D399">${JSON.stringify(c2.body?.error || c2.body || {})}</span>\n`;
+          }
+        }
+
+        if (evidence.call_good && evidence.call_bad) {
+          const cg = evidence.call_good.response || {};
+          const cb = evidence.call_bad.response || {};
+          output += `<span style="color:var(--mc-text-muted)">// Call 1: ${evidence.call_good.note || ''}</span>\n`;
+          output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">GET /payments</span>\n`;
+          output += `<span style="color:#60A5FA">← Response</span> <span style="color:var(--mc-emerald); font-weight:bold">${cg.status_code || ''}</span>\n\n`;
+
+          output += `<span style="color:var(--mc-text-muted)">// Call 2: ${evidence.call_bad.note || ''}</span>\n`;
+          output += `<span style="color:#60A5FA">→ Request</span>  <span style="color:#34D399">GET /payments (Invalid Auth)</span>\n`;
+          const isErr = cb.status_code >= 400;
+          output += `<span style="color:#60A5FA">← Response</span> <span style="color:${isErr ? 'var(--mc-redstone)' : 'var(--mc-emerald)'}; font-weight:bold">${cb.status_code || ''}</span>\n`;
+          if (cb.body) {
+            output += `<span style="color:#60A5FA">  Body</span>     <span style="color:#34D399">${JSON.stringify(cb.body?.error || cb.body || {})}</span>\n`;
+          }
+        }
+
+        output += `\n`;
+        const matched = evidence.matched;
+        output += `<span style="font-weight:bold; color:${matched ? 'var(--mc-diamond)' : 'var(--mc-redstone)'}">${matched ? '💎 DIAMOND MATCH — Bug signature confirmed programmatically' : '✗ NO MATCH — Hypothesis rejected'}</span>\n`;
+        output += `<span style="color:var(--mc-text-muted)">// API calls consumed: ${repro.calls_used || 0} / 10</span>`;
+
+        return output;
+      }
+
+      return `<span style="color:var(--mc-text-muted)">// Click "Run reproduction" to fire API test calls.</span>`;
+    }
+
+    // ── AGENT VIEW BUILDER ──
+    function buildAgentView() {
+      const s = state;
+      const isInvestigating = s.agentStatus === 'investigating';
+
+      return `
   <div class="agent-workspace">
     <!-- Top Launch Bar -->
     <div class="agent-launch-bar">
@@ -1702,8 +2011,8 @@ function buildAgentView() {
         <span style="font-family:var(--font-mono); font-size:10px; color:var(--mc-diamond)">GEMINI 2.5 FLASH</span>
       </div>
       <div class="agent-log-screen" id="agent-log-screen">
-        ${s.agentLogs.length === 0 
-          ? '<div class="agent-log-empty">Click "LAUNCH AGENT" to trigger autonomous bug triage & reproduction...</div>' 
+        ${s.agentLogs.length === 0
+          ? '<div class="agent-log-empty">Click "LAUNCH AGENT" to trigger autonomous bug triage & reproduction...</div>'
           : s.agentLogs.map(buildAgentLogLine).join('')
         }
       </div>
@@ -1712,46 +2021,46 @@ function buildAgentView() {
     <!-- Bottom Fix Plan Section -->
     ${s.agentFixPlan ? buildFixPlanSection(s.agentFixPlan) : ''}
   </div>`;
-}
+    }
 
-function buildAgentLogLine(log) {
-  const { type, message, tool, result } = log;
+    function buildAgentLogLine(log) {
+      const { type, message, tool, result } = log;
 
-  if (type === 'start') {
-    return `<div class="agent-log-line type-start">[AGENT] Initializing... ${message}</div>`;
-  }
-  if (type === 'thought') {
-    return `<div class="agent-log-line type-thought"><span style="color:var(--mc-gold)">[THINK]</span> ${escapeHTML(message)}</div>`;
-  }
-  if (type === 'action') {
-    return `
+      if (type === 'start') {
+        return `<div class="agent-log-line type-start">[AGENT] Initializing... ${message}</div>`;
+      }
+      if (type === 'thought') {
+        return `<div class="agent-log-line type-thought"><span style="color:var(--mc-gold)">[THINK]</span> ${escapeHTML(message)}</div>`;
+      }
+      if (type === 'action') {
+        return `
     <div class="agent-log-line type-action">
       <span class="tool-badge">${tool || 'TOOL'}</span>
       <span>[ACT] ${escapeHTML(message)}</span>
     </div>`;
-  }
-  if (type === 'result') {
-    const isErr = result && result.error;
-    const isConfirmed = result && result.confirmed;
-    return `
+      }
+      if (type === 'result') {
+        const isErr = result && result.error;
+        const isConfirmed = result && result.confirmed;
+        return `
     <div class="agent-log-line type-result ${isErr ? 'err' : ''}">
       <span>${isErr ? '[ERROR]' : isConfirmed ? '💎 [CONFIRMED]' : '[RESULT]'} ${escapeHTML(message)}</span>
     </div>`;
-  }
-  if (type === 'complete') {
-    return `<div class="agent-log-line type-complete" style="color:var(--mc-emerald)">[DONE] ${escapeHTML(message)}</div>`;
-  }
-  if (type === 'error') {
-    return `<div class="agent-log-line type-error">[ERROR] ${escapeHTML(message)}</div>`;
-  }
-  return `<div class="agent-log-line">${escapeHTML(message)}</div>`;
-}
+      }
+      if (type === 'complete') {
+        return `<div class="agent-log-line type-complete" style="color:var(--mc-emerald)">[DONE] ${escapeHTML(message)}</div>`;
+      }
+      if (type === 'error') {
+        return `<div class="agent-log-line type-error">[ERROR] ${escapeHTML(message)}</div>`;
+      }
+      return `<div class="agent-log-line">${escapeHTML(message)}</div>`;
+    }
 
-function buildFixPlanSection(data) {
-  const plan = data.fix_plan || [];
-  const totalRecovery = data.total_monthly_recovery || 0;
+    function buildFixPlanSection(data) {
+      const plan = data.fix_plan || [];
+      const totalRecovery = data.total_monthly_recovery || 0;
 
-  return `
+      return `
   <div class="fix-plan-window">
     <div class="window-header" style="background:var(--mc-deepslate)">
       <span>PRIORITIZED FIX PLAN // RECOVERY: ${fmt(totalRecovery)}/MO</span>
@@ -1787,45 +2096,45 @@ function buildFixPlanSection(data) {
       `).join('')}
     </div>
   </div>`;
-}
+    }
 
-function escapeHTML(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
 
-function buildMetricsView() {
-  const m = state.metrics;
-  if (!m || m.error) {
-    return `
+    function buildMetricsView() {
+      const m = state.metrics;
+      if (!m || m.error) {
+        return `
     <div class="metrics-workspace">
       <div style="font-family:var(--font-pixel); font-size:12px; color:var(--mc-text-muted)">NO METRICS COMPUTED</div>
     </div>`;
-  }
+      }
 
-  const perClass = m.per_class || {};
-  const ablation = m.ablation || {};
-  const det = ablation.deterministic_rules || {};
-  const heu = ablation.heuristic_fallback || {};
+      const perClass = m.per_class || {};
+      const ablation = m.ablation || {};
+      const det = ablation.deterministic_rules || {};
+      const heu = ablation.heuristic_fallback || {};
 
-  const classRows = ['MERCHANT', 'BANK', 'CUSTOMER'].map(label => {
-    const c = perClass[label] || {};
-    const p = (c.precision || 0) * 100;
-    const r = (c.recall || 0) * 100;
-    const f1 = (c.f1 || 0);
-    const tp = c.tp || 0;
-    const fp = c.fp || 0;
-    const fn = c.fn || 0;
-    
-    let pClass = '';
-    if (r < 80) pClass = 'bad';
-    else if (r < 95) pClass = 'warn';
+      const classRows = ['MERCHANT', 'BANK', 'CUSTOMER'].map(label => {
+        const c = perClass[label] || {};
+        const p = (c.precision || 0) * 100;
+        const r = (c.recall || 0) * 100;
+        const f1 = (c.f1 || 0);
+        const tp = c.tp || 0;
+        const fp = c.fp || 0;
+        const fn = c.fn || 0;
 
-    return `
+        let pClass = '';
+        if (r < 80) pClass = 'bad';
+        else if (r < 95) pClass = 'warn';
+
+        return `
     <tr>
       <td style="font-weight:bold; font-family:var(--font-cyber); color:var(--mc-concrete)">${label}</td>
       <td style="font-family:var(--font-mono)">${p.toFixed(1)}%</td>
@@ -1841,25 +2150,25 @@ function buildMetricsView() {
         </div>
       </td>
     </tr>`;
-  }).join('');
+      }).join('');
 
-  return `
+      return `
   <div class="metrics-workspace">
     <div class="hero-quad">
       <div class="hero-score-card">
-        <span class="hero-score-val emerald">${((m.overall_precision||0)*100).toFixed(1)}%</span>
+        <span class="hero-score-val emerald">${((m.overall_precision || 0) * 100).toFixed(1)}%</span>
         <span style="font-family:var(--font-pixel); font-size:8px; color:var(--mc-text-muted); text-transform:uppercase">Precision Rate</span>
       </div>
       <div class="hero-score-card">
-        <span class="hero-score-val emerald">${((m.overall_recall||0)*100).toFixed(1)}%</span>
+        <span class="hero-score-val emerald">${((m.overall_recall || 0) * 100).toFixed(1)}%</span>
         <span style="font-family:var(--font-pixel); font-size:8px; color:var(--mc-text-muted); text-transform:uppercase">Recall Rate</span>
       </div>
       <div class="hero-score-card">
-        <span class="hero-score-val red">${fmt(m.false_positive_cost_rupees||0)}</span>
+        <span class="hero-score-val red">${fmt(m.false_positive_cost_rupees || 0)}</span>
         <span style="font-family:var(--font-pixel); font-size:8px; color:var(--mc-text-muted); text-transform:uppercase">False-Positive Cost</span>
       </div>
       <div class="hero-score-card">
-        <span class="hero-score-val diamond">${fmt(m.rupees_identified||0)}</span>
+        <span class="hero-score-val diamond">${fmt(m.rupees_identified || 0)}</span>
         <span style="font-family:var(--font-pixel); font-size:8px; color:var(--mc-text-muted); text-transform:uppercase">Merchant Loss Identified</span>
       </div>
     </div>
@@ -1897,7 +2206,7 @@ function buildMetricsView() {
               <div style="font-weight:bold; color:var(--mc-concrete)">Deterministic Rules Engine</div>
               <div style="font-size:11px; color:var(--mc-text-dim)">${det.note || 'Exact schema verification'}</div>
             </div>
-            <div style="font-family:var(--font-lcd); font-size:22px; color:var(--mc-emerald); font-weight:bold">${((det.accuracy||0)*100).toFixed(1)}% Acc</div>
+            <div style="font-family:var(--font-lcd); font-size:22px; color:var(--mc-emerald); font-weight:bold">${((det.accuracy || 0) * 100).toFixed(1)}% Acc</div>
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1905,7 +2214,7 @@ function buildMetricsView() {
               <div style="font-weight:bold; color:var(--mc-concrete)">Heuristic / LLM Fallback</div>
               <div style="font-size:11px; color:var(--mc-text-dim)">${heu.note || 'Attribute ambiguous errors'}</div>
             </div>
-            <div style="font-family:var(--font-lcd); font-size:22px; color:var(--mc-gold); font-weight:bold">${((heu.accuracy||0)*100).toFixed(1)}% Acc</div>
+            <div style="font-family:var(--font-lcd); font-size:22px; color:var(--mc-gold); font-weight:bold">${((heu.accuracy || 0) * 100).toFixed(1)}% Acc</div>
           </div>
         </div>
 
@@ -1925,11 +2234,11 @@ function buildMetricsView() {
       </div>
     </div>
   </div>`;
-}
+    }
 
-function buildAchievementsModal() {
-  const achs = Object.values(state.achievements);
-  return `
+    function buildAchievementsModal() {
+      const achs = Object.values(state.achievements);
+      return `
   <div class="modal-overlay" id="modal-close">
     <div class="modal-window">
       <div class="window-header">
@@ -1950,125 +2259,126 @@ function buildAchievementsModal() {
       </div>
     </div>
   </div>`;
-}
+    }
 
-let particleInterval = null;
+    let particleInterval = null;
 
-function startParticles() {
-  if (particleInterval) clearInterval(particleInterval);
-  if (state.tab !== 'breaches') return;
+    function startParticles() {
+      if (particleInterval) clearInterval(particleInterval);
+      if (state.tab !== 'breaches') return;
 
-  const tubes = [0, 1, 2].map(i => document.getElementById(`pipe-${i}`));
-  if (!tubes[0]) return;
+      const tubes = [0, 1, 2].map(i => document.getElementById(`pipe-${i}`));
+      if (!tubes[0]) return;
 
-  function spawnParticle() {
-    const segIdx = Math.floor(Math.random() * 3);
-    const tube = tubes[segIdx];
-    if (!tube) return;
+      function spawnParticle() {
+        const segIdx = Math.floor(Math.random() * 3);
+        const tube = tubes[segIdx];
+        if (!tube) return;
 
-    const failChance = segIdx === 2 ? 0.55 : 0.15;
-    const isFail = Math.random() < failChance;
-    const isWarn = !isFail && Math.random() < 0.1;
+        const failChance = segIdx === 2 ? 0.55 : 0.15;
+        const isFail = Math.random() < failChance;
+        const isWarn = !isFail && Math.random() < 0.1;
 
-    const p = document.createElement('div');
-    p.className = `particle-dot ${isFail ? 'fail' : isWarn ? 'warn' : 'ok'}`;
-    const duration = 1200 + Math.random() * 1000;
-    const delay = Math.random() * 400;
-    p.style.animationDuration = `${duration}ms`;
-    p.style.animationDelay = `${delay}ms`;
-    p.style.top = `${30 + Math.random() * 40}%`;
-    tube.appendChild(p);
-    
-    setTimeout(() => p.remove(), duration + delay + 200);
-  }
+        const p = document.createElement('div');
+        p.className = `particle-dot ${isFail ? 'fail' : isWarn ? 'warn' : 'ok'}`;
+        const duration = 1200 + Math.random() * 1000;
+        const delay = Math.random() * 400;
+        p.style.animationDuration = `${duration}ms`;
+        p.style.animationDelay = `${delay}ms`;
+        p.style.top = `${30 + Math.random() * 40}%`;
+        tube.appendChild(p);
 
-  particleInterval = setInterval(spawnParticle, 120);
-}
+        setTimeout(() => p.remove(), duration + delay + 200);
+      }
 
-function bindEvents() {
-  document.querySelectorAll('[data-tab]').forEach(el => {
-    el.addEventListener('click', () => {
-      playBeep(440, 'sine', 0.05);
-      state.tab = el.dataset.tab;
-      render();
-    });
-  });
+      particleInterval = setInterval(spawnParticle, 120);
+    }
 
-  document.querySelectorAll('[data-filter]').forEach(el => {
-    el.addEventListener('click', () => {
-      playBeep(500, 'square', 0.05);
-      state.filter = el.dataset.filter;
-      render();
-    });
-  });
+    function bindEvents() {
+      document.querySelectorAll('[data-tab]').forEach(el => {
+        el.addEventListener('click', () => {
+          playBeep(440, 'sine', 0.05);
+          state.tab = el.dataset.tab;
+          render();
+        });
+      });
 
-  document.querySelectorAll('[data-breach-id]').forEach(el => {
-    el.addEventListener('click', () => {
-      playBeep(660, 'sine', 0.04);
-      state.selectedId = el.dataset.breachId;
-      render();
-    });
-  });
+      document.querySelectorAll('[data-filter]').forEach(el => {
+        el.addEventListener('click', () => {
+          playBeep(500, 'square', 0.05);
+          state.filter = el.dataset.filter;
+          render();
+        });
+      });
 
-  const reproBtn = document.getElementById('repro-btn');
-  if (reproBtn) {
-    reproBtn.addEventListener('click', () => {
-      triggerRepro(reproBtn.dataset.id);
-    });
-  }
+      document.querySelectorAll('[data-breach-id]').forEach(el => {
+        el.addEventListener('click', () => {
+          playBeep(660, 'sine', 0.04);
+          state.selectedId = el.dataset.breachId;
+          render();
+        });
+      });
 
-  const launchAgentBtn = document.getElementById('launch-agent-btn');
-  if (launchAgentBtn) {
-    launchAgentBtn.addEventListener('click', launchAgent);
-  }
+      const reproBtn = document.getElementById('repro-btn');
+      if (reproBtn) {
+        reproBtn.addEventListener('click', () => {
+          triggerRepro(reproBtn.dataset.id);
+        });
+      }
 
-  const refreshBtn = document.getElementById('refresh-btn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', doRefresh);
-  }
+      const launchAgentBtn = document.getElementById('launch-agent-btn');
+      if (launchAgentBtn) {
+        launchAgentBtn.addEventListener('click', launchAgent);
+      }
 
-  const achieveBtn = document.getElementById('achieve-btn');
-  if (achieveBtn) {
-    achieveBtn.addEventListener('click', () => {
-      state.showAchievementsModal = true;
-      render();
-    });
-  }
+      const refreshBtn = document.getElementById('refresh-btn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', doRefresh);
+      }
 
-  const modalX = document.getElementById('modal-x');
-  if (modalX) {
-    modalX.addEventListener('click', () => {
-      state.showAchievementsModal = false;
-      render();
-    });
-  }
+      const achieveBtn = document.getElementById('achieve-btn');
+      if (achieveBtn) {
+        achieveBtn.addEventListener('click', () => {
+          state.showAchievementsModal = true;
+          render();
+        });
+      }
 
-  const sfxToggle = document.getElementById('sfx-toggle');
-  if (sfxToggle) {
-    sfxToggle.addEventListener('click', () => {
-      state.sfxEnabled = !state.sfxEnabled;
-      render();
-    });
-  }
+      const modalX = document.getElementById('modal-x');
+      if (modalX) {
+        modalX.addEventListener('click', () => {
+          state.showAchievementsModal = false;
+          render();
+        });
+      }
 
-  const crtToggle = document.getElementById('crt-toggle');
-  if (crtToggle) {
-    crtToggle.addEventListener('click', () => {
-      state.crtEnabled = !state.crtEnabled;
-      document.body.classList.toggle('crt-active', state.crtEnabled);
-      render();
-    });
-  }
+      const sfxToggle = document.getElementById('sfx-toggle');
+      if (sfxToggle) {
+        sfxToggle.addEventListener('click', () => {
+          state.sfxEnabled = !state.sfxEnabled;
+          render();
+        });
+      }
 
-  document.querySelectorAll('[data-copy]').forEach(el => {
-    el.addEventListener('click', () => {
-      copyToClipboard(decodeURIComponent(el.dataset.copy));
-    });
-  });
-}
+      const crtToggle = document.getElementById('crt-toggle');
+      if (crtToggle) {
+        crtToggle.addEventListener('click', () => {
+          state.crtEnabled = !state.crtEnabled;
+          document.body.classList.toggle('crt-active', state.crtEnabled);
+          render();
+        });
+      }
 
-render();
-fetchAll();
-</script>
+      document.querySelectorAll('[data-copy]').forEach(el => {
+        el.addEventListener('click', () => {
+          copyToClipboard(decodeURIComponent(el.dataset.copy));
+        });
+      });
+    }
+
+    render();
+    fetchAll();
+  </script>
 </body>
+
 </html>
